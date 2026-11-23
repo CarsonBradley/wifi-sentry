@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 232" width="900" height="232" role="img" aria-labelledby="t d">
+  <title id="t">How wifi-sentry works</title>
+  <desc id="d">The router's Wi-Fi signal crosses the room. A moving person disturbs it. The Mac's two antennas read the signal strength 10 times a second. The engine compares the fluctuation with the learned still-room baseline to get a score, and opens an event, and optionally sends an alert, when the score stays above the trigger level for 2 seconds.</desc>
+  <style>
+    text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; fill: #1f2328; }
+    .h { font-size: 15px; font-weight: 600; }
+    .s { font-size: 12px; fill: #59636e; }
+    .box { fill: #ffffff; stroke: #d1d9e0; stroke-width: 1.5; }
+    .wave { fill: none; stroke: #2f6fdb; stroke-width: 2; stroke-linecap: round; }
+    .arrow { fill: none; stroke: #59636e; stroke-width: 1.8; marker-end: url(#a); }
+    .ink { fill: #1f2328; }
+    .hot { fill: #cf222e; }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#59636e"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="900" height="232" rx="14" fill="#f6f8fa"/>
+
+  <!-- Router -->
+  <rect class="box" x="24" y="56" width="120" height="96" rx="10"/>
+  <rect class="ink" x="54" y="102" width="60" height="18" rx="4"/>
+  <line x1="66" y1="102" x2="60" y2="80" stroke="#1f2328" stroke-width="3" stroke-linecap="round"/>
+  <line x1="102" y1="102" x2="108" y2="80" stroke="#1f2328" stroke-width="3" stroke-linecap="round"/>
+  <text class="h" x="84" y="178" text-anchor="middle">Router</text>
+  <text class="s" x="84" y="196" text-anchor="middle">already there</text>
+
+  <!-- Waves and person -->
+  <path class="wave" d="M156,104 q12,-12 24,0 t24,0 t24,0"/>
+  <path class="wave" d="M262,104 q12,-12 24,0 t24,0 t24,0" opacity="0.55"/>
+  <circle class="ink" cx="246" cy="66" r="9"/>
+  <path class="ink" d="M238,78 h16 l4,34 h-7 l-3,30 h-4 l-3,-30 h-7 z"/>
+  <text class="h" x="246" y="178" text-anchor="middle">Someone moves</text>
+  <text class="s" x="246" y="196" text-anchor="middle">reflections change</text>
+
+  <!-- Mac -->
+  <rect class="box" x="352" y="56" width="140" height="96" rx="10"/>
+  <rect x="377" y="88" width="90" height="34" rx="6" fill="#e6ebf1" stroke="#1f2328" stroke-width="1.5"/>
+  <line x1="397" y1="88" x2="391" y2="70" stroke="#2f6fdb" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="447" y1="88" x2="453" y2="70" stroke="#2f6fdb" stroke-width="2.5" stroke-linecap="round"/>
+  <text class="s" x="422" y="110" text-anchor="middle">Wi-Fi card</text>
+  <text class="h" x="422" y="178" text-anchor="middle">Your Mac</text>
+  <text class="s" x="422" y="196" text-anchor="middle">2 antennas, read 10×/s</text>
+
+  <line class="arrow" x1="500" y1="104" x2="536" y2="104"/>
+
+  <!-- Score -->
+  <rect class="box" x="544" y="56" width="160" height="96" rx="10"/>
+  <line x1="560" y1="86" x2="688" y2="86" stroke="#cf222e" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <path d="M560,132 l10,-4 l8,3 l9,-5 l8,4 l8,-2 l8,-32 l8,26 l9,-34 l8,30 l9,6 l10,-3 l9,4 l10,-2" fill="none" stroke="#1f2328" stroke-width="2" stroke-linejoin="round"/>
+  <text class="h" x="624" y="178" text-anchor="middle">Score</text>
+  <text class="s" x="624" y="196" text-anchor="middle">fluctuation vs. learned</text>
+  <text class="s" x="624" y="212" text-anchor="middle">still-room baseline</text>
+
+  <line class="arrow" x1="712" y1="104" x2="748" y2="104"/>
+
+  <!-- Alert -->
+  <rect class="box" x="756" y="56" width="120" height="96" rx="10"/>
+  <circle class="hot" cx="816" cy="96" r="20"/>
+  <rect x="813" y="83" width="6" height="17" rx="2" fill="#ffffff"/>
+  <circle cx="816" cy="107" r="3" fill="#ffffff"/>
+  <text class="h" x="816" y="178" text-anchor="middle">Event</text>
+  <text class="s" x="816" y="196" text-anchor="middle">dashboard; phone</text>
+  <text class="s" x="816" y="212" text-anchor="middle">alert if armed</text>
+
+  <text class="s" x="24" y="34">Everything after the router runs on your Mac. Nothing leaves it unless you turn on an alert.</text>
+</svg>

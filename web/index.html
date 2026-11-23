@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f7fcfa" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0a1212" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Sentry">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="format-detection" content="telephone=no">
+<meta name="description" content="Home motion sensing from Wi-Fi signal changes.">
+<title>wifi-sentry</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<svg class="sprite" aria-hidden="true" focusable="false">
+  <symbol id="i-mark" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.25"/><circle cx="12" cy="12" r="3.25"/><path d="M12 2.75v6"/><path d="M4.6 14.9l2.1-.9 1.2 2.6 1.5-4.4"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 16.5v-5.5a6 6 0 1 1 12 0v5.5l1.5 2h-15z"/><path d="M10 21a2.2 2.2 0 0 0 4 0"/></symbol>
+  <symbol id="i-bell-on" viewBox="0 0 24 24"><path d="M6 16.5v-5.5a6 6 0 1 1 12 0v5.5l1.5 2h-15z"/><path d="M10 21a2.2 2.2 0 0 0 4 0"/><path d="M3 9.5a9 9 0 0 1 2.4-5"/><path d="M21 9.5a9 9 0 0 0-2.4-5"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 4.5v4h-4"/></symbol>
+  <symbol id="i-route" viewBox="0 0 24 24"><circle cx="6" cy="18" r="2"/><circle cx="18" cy="6" r="2"/><path d="M8 18h8a3 3 0 0 0 0-6H8a3 3 0 0 1 0-6h8"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="M9.5 6l6 6-6 6"/></symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24"><rect x="6.5" y="2.8" width="11" height="18.4" rx="2"/><path d="M10.5 17.8h3"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="11" height="11" rx="1.5"/><path d="M15.5 8.5V6a1.5 1.5 0 0 0-1.5-1.5H6A1.5 1.5 0 0 0 4.5 6v8A1.5 1.5 0 0 0 6 15.5h2.5"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5.5v13M5.5 12h13"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 3.8l9 15.7H3z"/><path d="M12 10v4.2"/><circle cx="12" cy="17" r=".6"/></symbol>
+</svg>
+
+<header class="bar">
+  <div class="bar-in">
+    <div class="brand"><svg class="ic" aria-hidden="true"><use href="#i-mark"/></svg><span>wifi-sentry</span></div>
+    <div class="conn" id="conn" data-conn="connecting"><span class="conn-dot" aria-hidden="true"></span><span id="connText">Connecting</span></div>
+    <button class="icon-btn" id="alertsBtn" type="button" aria-expanded="false" aria-controls="alertsPanel" aria-label="Alerts on this device" title="Alerts on this device">
+      <svg class="ic" aria-hidden="true"><use href="#i-bell"/></svg>
+    </button>
+  </div>
+  <div class="alerts-panel" id="alertsPanel" hidden>
+    <div class="alerts-head">
+      <h2>Alerts on this device</h2>
+      <button class="icon-btn" type="button" id="alertsClose" aria-label="Close"><svg class="ic" aria-hidden="true"><use href="#i-x"/></svg></button>
+    </div>
+    <p class="fine">When motion starts while armed, this page can make a sound or vibrate. It only works while the page is open and on screen; iPhone pauses pages in the background.</p>
+    <div class="row-toggle">
+      <div><span class="label">Sound</span><span class="fine" id="soundNote"></span></div>
+      <button class="switch" id="soundSwitch" type="button" role="switch" aria-checked="false" aria-label="Sound alerts"><span></span></button>
+    </div>
+    <div class="row-toggle">
+      <div><span class="label">Vibrate</span><span class="fine" id="vibNote"></span></div>
+      <button class="switch" id="vibSwitch" type="button" role="switch" aria-checked="false" aria-label="Vibration alerts"><span></span></button>
+    </div>
+    <button class="btn" type="button" id="testAlert">Test alert</button>
+    <p class="fine">To be alerted while this page is closed or you are away, <button class="linkish" type="button" id="bellToPush">set up phone alerts</button>.</p>
+  </div>
+</header>
+
+<main class="layout">
+  <div class="col-inst">
+    <section class="status" id="hero" data-state="connecting" aria-labelledby="heroTitle">
+      <h1 id="heroTitle">Connecting</h1>
+      <p id="heroSub" class="status-sub">Reaching wifi-sentry…</p>
+      <p class="sr" id="srLive" aria-live="polite"></p>
+
+      <div class="learn" id="learnBox" hidden>
+        <div class="bar-track" aria-hidden="true"><span id="learnBar"></span></div>
+        <p class="fine num" id="learnText"></p>
+      </div>
+
+      <form class="login" id="loginBox" hidden autocomplete="off">
+        <label for="tokenInput" class="field-label">Access token</label>
+        <div class="input-row">
+          <input id="tokenInput" name="token" type="password" autocomplete="current-password" spellcheck="false" autocapitalize="off" required placeholder="Paste the token">
+          <button class="btn primary" type="submit" id="loginBtn">Unlock</button>
+        </div>
+        <p class="fine" id="loginMsg" role="status">On the Mac running wifi-sentry, run <code>./wifi-sentry open</code> (that Mac’s browser) or <code>./wifi-sentry url</code> and open the link it prints, or paste the token here.</p>
+      </form>
+
+      <div class="disc" id="discBox" hidden>
+        <p id="discText"></p>
+        <button class="btn" id="retryBtn" type="button"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg>Retry now</button>
+      </div>
+
+      <div class="arm" id="armRow">
+        <button class="switch big" id="armSwitch" type="button" role="switch" aria-checked="false" aria-labelledby="armLabel" aria-describedby="armHint" disabled><span></span></button>
+        <div>
+          <span class="label" id="armLabel">Armed</span>
+          <span class="fine" id="armHint">&nbsp;</span>
+        </div>
+      </div>
+      <div class="prompt-row" id="alertsPrompt" hidden>
+        <button class="btn ghost" type="button" id="promptSetup"><svg class="ic" aria-hidden="true"><use href="#i-phone"/></svg>Set up phone alerts</button>
+        <span class="fine">for a push when it sees motion while armed</span>
+        <button class="icon-btn" type="button" id="promptDismiss" aria-label="Dismiss the phone alerts suggestion"><svg class="ic" aria-hidden="true"><use href="#i-x"/></svg></button>
+      </div>
+    </section>
+
+    <div class="notice warn" id="alertFail" role="alert" hidden>
+      <svg class="ic" aria-hidden="true"><use href="#i-warn"/></svg>
+      <span id="alertFailText"></span>
+      <button class="btn" type="button" id="alertFailFix">Check</button>
+    </div>
+
+    <div class="notice sensing" id="sensingNotice" role="status" hidden>
+      <svg class="ic" aria-hidden="true"><use href="#i-warn"/></svg>
+      <span id="sensingText"></span>
+    </div>
+
+    <div class="notice" id="soundPaused" hidden>
+      <span>Sound alerts are on but paused until you tap.</span>
+      <button class="btn" type="button" id="soundResume">Enable sound</button>
+    </div>
+
+    <section class="setup" id="setup" hidden aria-labelledby="setupTitle">
+      <div class="setup-top">
+        <span class="fine num" id="setupStepNo"></span>
+        <button class="btn ghost" type="button" id="setupSkip">Skip setup</button>
+      </div>
+      <ol class="setup-steps" id="setupDots" aria-hidden="true"></ol>
+      <h2 id="setupTitle">Set up wifi-sentry</h2>
+      <div class="setup-body" id="setupBody"></div>
+      <div class="setup-nav">
+        <button class="btn" type="button" id="setupBack">Back</button>
+        <button class="btn primary" type="button" id="setupNext">Next</button>
+      </div>
+    </section>
+
+    <section class="day" id="daySec" aria-labelledby="dayTitle">
+      <div class="sec-head">
+        <h2 id="dayTitle">Last 24 hours</h2>
+        <span class="fine num" id="dayNote"></span>
+      </div>
+      <div class="dial" id="dial">
+        <canvas id="dayChart" role="img" aria-label="Activity over the last 24 hours"></canvas>
+        <div class="hub" id="hub" aria-hidden="true"><span class="hub-val num" id="hubVal">–</span><span class="hub-cap" id="hubCap">activity</span></div>
+        <div class="chart-tip" id="dayTip" hidden></div>
+      </div>
+      <ul class="legend" aria-hidden="true">
+        <li><svg viewBox="0 0 16 10"><path class="k-trace" d="M0 6l3-1 2 2 3-3 2 2 3-1 3 1"/></svg>Activity</li>
+        <li><svg viewBox="0 0 16 10"><path class="k-thr" d="M0 5h16"/></svg>Trigger level</li>
+        <li><svg viewBox="0 0 16 10"><rect class="k-ev" width="16" height="10"/><rect class="k-ev-rim" width="16" height="3"/></svg>Motion</li>
+        <li><svg viewBox="0 0 16 10"><rect class="k-gap-bg" width="16" height="10"/><path class="k-gap" d="M-2 12L8-2M4 12L14-2M10 12L20-2"/><rect class="k-gap-rim" x=".5" y=".5" width="15" height="4"/><path class="k-gap-rim-dash" d="M0 2.5h16"/></svg>Not watching</li>
+      </ul>
+    </section>
+  </div>
+
+  <div class="col-log">
+    <section class="digest" id="digest" hidden aria-labelledby="digestTitle">
+      <h2 id="digestTitle">Since you last checked</h2>
+      <p id="digestText"></p>
+      <button class="btn" type="button" id="digestDismiss">Got it</button>
+    </section>
+
+    <section class="sec" id="activity" aria-labelledby="activityTitle">
+      <div class="sec-head">
+        <h2 id="activityTitle">Activity</h2>
+        <div class="tabs" id="rangeSeg" role="group" aria-label="Chart range">
+          <button type="button" data-range="900">15 min</button>
+          <button type="button" data-range="3600">1 h</button>
+          <button type="button" data-range="21600">6 h</button>
+          <button type="button" data-range="86400">24 h</button>
+        </div>
+      </div>
+      <div class="chart-wrap" id="chartWrap">
+        <canvas id="chart" role="img" aria-label="Activity over time against the trigger level"></canvas>
+        <div class="chart-tip" id="chartTip" hidden></div>
+        <div class="chart-empty" id="chartEmpty" hidden>No data for this range yet</div>
+      </div>
+    </section>
+
+    <section class="sec" id="eventsSec" aria-labelledby="eventsTitle">
+      <div class="sec-head">
+        <h2 id="eventsTitle">Events</h2>
+        <span class="fine" id="eventsCount"></span>
+      </div>
+      <div id="eventList" class="event-list">
+        <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
+      </div>
+      <button class="btn wide" type="button" id="moreBtn" hidden>Show older events</button>
+    </section>
+
+    <section class="sec" id="sensorsSec" aria-labelledby="sensorsTitle">
+      <div class="sec-head"><h2 id="sensorsTitle">Sensors</h2><span class="fine num" id="sysLine"></span></div>
+      <ul class="sensor-list" id="sensorList"></ul>
+      <details class="about">
+        <summary>What this can and can’t see<svg class="ic chev" aria-hidden="true"><use href="#i-chev"/></svg></summary>
+        <p>wifi-sentry watches how the Wi-Fi signal between this computer and your router fluctuates; people moving through it disturb the signal. For now it’s a coarse sensor that reads the Mac’s signal strength. It picks up presence and larger movement near the path between the computer and the router, and can miss small or distant motion elsewhere in the home. Adding ESP32 sensors around your home widens what it covers.</p>
+      </details>
+    </section>
+
+    <section class="sec" id="alertsSec" aria-labelledby="alertsTitle" hidden>
+      <div class="sec-head"><h2 id="alertsTitle">Phone alerts</h2><span class="fine" id="alertsCount"></span></div>
+      <p class="fine">Sent only while armed: one per motion event, and at most one every few minutes.</p>
+      <div class="chan-list" id="chanList"></div>
+    </section>
+
+    <section class="sec" id="settingsSec" aria-labelledby="settingsTitle">
+      <div class="sec-head"><h2 id="settingsTitle">Settings</h2></div>
+
+      <div class="setting">
+        <h3 id="sensLabel">Sensitivity</h3>
+        <div class="scale" id="sensSeg" role="radiogroup" aria-labelledby="sensLabel">
+          <button type="button" role="radio" data-level="low">Low</button>
+          <button type="button" role="radio" data-level="medium">Medium</button>
+          <button type="button" role="radio" data-level="high">High</button>
+        </div>
+        <p class="fine">Higher catches smaller and more distant movement but raises more false alarms. Lower ignores small things like a pet or a curtain, and can miss someone moving far from the sensor.</p>
+      </div>
+
+      <div class="setting" id="armSec" hidden>
+        <h3>Arming</h3>
+        <label class="field" for="delaySelect">
+          <span class="field-label">Exit delay</span>
+          <select id="delaySelect">
+            <option value="0">None: arm at once</option>
+            <option value="30">30 seconds</option>
+            <option value="60">1 minute</option>
+            <option value="120">2 minutes</option>
+            <option value="300">5 minutes</option>
+          </select>
+          <span class="fine">After you arm, motion is only logged for this long, so you can leave without setting it off.</span>
+        </label>
+        <div class="row-toggle">
+          <div><span class="label" id="schedLabel">Arm on a schedule</span><span class="fine" id="schedTz">Times are this Mac’s local time.</span></div>
+          <button class="switch" id="schedSwitch" type="button" role="switch" aria-checked="false" aria-labelledby="schedLabel"><span></span></button>
+        </div>
+        <div class="sched" id="schedBox" hidden>
+          <div id="schedRows" class="sched-rows"></div>
+          <button class="btn ghost" type="button" id="schedAdd"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg>Add time</button>
+          <p class="fine">Armed during these times. Arming or disarming by hand wins until the next start or end time.</p>
+          <div class="btn-row"><button class="btn primary" type="button" id="schedSave">Save schedule</button></div>
+          <p class="form-msg" id="schedMsg" role="status" hidden></p>
+        </div>
+      </div>
+
+      <div class="setting" id="walkSec">
+        <h3>Walk test</h3>
+        <div id="walkIdle">
+          <p class="fine">Find out what this setup can actually see. Start the test, walk normally through the rooms you want covered for 30 to 60 seconds, then stop. You’ll get a recommended sensitivity.</p>
+          <button class="btn" type="button" id="walkStart"><svg class="ic" aria-hidden="true"><use href="#i-route"/></svg>Start walk test</button>
+        </div>
+        <div id="walkRun" class="walk-run" hidden>
+          <div class="walk-timer"><span class="num" id="walkClock">0:00</span><span class="fine" id="walkHint">Start walking.</span></div>
+          <div class="bar-track walk-bar" aria-hidden="true"><span id="walkBar"></span><i style="left:50%"></i></div>
+          <div class="walk-scale fine num" aria-hidden="true"><span>0 s</span><span>30 s</span><span>60 s</span></div>
+          <p class="fine num" id="walkLive"></p>
+          <button class="btn primary" type="button" id="walkStop">Stop and see results</button>
+        </div>
+        <div id="walkResult" class="walk-result" hidden></div>
+      </div>
+
+      <div class="setting">
+        <h3>Baseline</h3>
+        <p class="fine">The detector learns what a still room looks like. Relearn after moving the computer or the router, or rearranging furniture.</p>
+        <button class="btn" type="button" id="relearnBtn">Relearn baseline…</button>
+        <div class="confirm" id="relearnConfirm" hidden>
+          <p>Keep the room still until learning finishes: nobody walking around, fans and robot vacuums off. Motion isn’t detected while it learns.</p>
+          <div class="btn-row">
+            <button class="btn primary" type="button" id="relearnGo">Relearn now</button>
+            <button class="btn ghost" type="button" id="relearnCancel">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="setting" id="guideSec" hidden>
+        <h3>Setup guide</h3>
+        <p class="fine">The first-run steps again: sensor check, learning, walk test, phone alerts, arming.</p>
+        <button class="btn" type="button" id="guideBtn">Run setup again</button>
+      </div>
+    </section>
+  </div>
+</main>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script src="chart.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

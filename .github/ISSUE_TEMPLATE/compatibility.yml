@@ -1,0 +1,54 @@
+name: Compatibility report
+description: Tell us what wifi-sentry sees on your Mac (works, partly works, or doesn't).
+title: "Compatibility: <Mac model>, macOS <version>"
+labels: [compatibility]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        wifi-sentry has been tested on one Mac. Every report, including "it doesn't work", helps.
+        Results are collected in [docs/compatibility.md](https://github.com/CarsonBradley/wifi-sentry/blob/main/docs/compatibility.md).
+  - type: input
+    id: model
+    attributes:
+      label: Mac model
+      description: Apple menu → About This Mac, plus the identifier from `sysctl -n hw.model` if you can.
+      placeholder: "e.g. MacBook Pro 14-inch M4 (Mac16,8)"
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: "e.g. 27.0.1"
+    validations:
+      required: true
+  - type: textarea
+    id: probe
+    attributes:
+      label: Output of `./wifi-sentry probe`
+      description: It contains no addresses or paths, so it can be pasted as is.
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: link
+    attributes:
+      label: Wi-Fi band and router (optional)
+      description: "e.g. 5 GHz / Wi-Fi 6 router / mesh. Hold Option and click the Wi-Fi menu to see channel and band."
+  - type: dropdown
+    id: walk
+    attributes:
+      label: Walk test result
+      description: Dashboard → Settings → Walk test, after the 10-minute learning period.
+      options:
+        - Not tried
+        - Detected at the recommended level
+        - Detected only at High / marginal
+        - Not detected
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else (false alarms, laptop on battery, distance to router, ...)

@@ -1,0 +1,33 @@
+# Runtime data: database, logs, raw Wi-Fi recordings, walk-test captures, pid/lock files.
+# Recordings describe when people are home; never commit them.
+/data/
+
+# This machine's settings and secrets (ports, exposure, alert credentials); template:
+# config.local.example.toml. The access token lives in data/access-token.
+/config.local.toml
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+
+# Built sampler binary (scripts: sensor/build.sh)
+/sensor/wifisense
+/sensor/wifisense.new
+
+# ESP-IDF: sdkconfig holds the Wi-Fi password after `idf.py menuconfig`
+/esp32/sdkconfig
+/esp32/sdkconfig.old
+/esp32/build/
+/esp32/managed_components/
+/esp32/dependencies.lock
+/esp32/test/host_test
+
+# Editor / OS / tool caches
+.DS_Store
+.impeccable/
+
+# Dashboard screenshots written by web/dev/shoot.py (test artifacts; the README's images are in docs/img/)
+/web/dev/screenshots/

@@ -1,0 +1,233 @@
+# wifi-sentry engine configuration: generic defaults, committed to git.
+#
+# Don't edit this file for your own setup: put your changes in config.local.toml next to it
+# (git-ignored; ./install.sh creates it from config.local.example.toml). It overrides this file key
+# by key, survives `./wifi-sentry update`, and is the place for secrets (alert credentials).
+# Every key is optional: anything missing falls back to the built-in default
+# (engine/src/sentry/config.py, DEFAULTS). Times are seconds; scores are the
+# normalised motion-score units used everywhere (idle sits around 0-1).
+
+[server]
+port = 8450
+# The dashboard always listens on 127.0.0.1 (this Mac only). To reach it from other devices add
+# places to listen; anything beyond 127.0.0.1 requires the access token (./wifi-sentry url):
+#   "tailscale"  this Mac's Tailscale 100.x address (found with the tailscale CLI; retried until
+#                Tailscale is up)
+#   "lan"        the Wi-Fi interface's address: anyone on your network can reach the login
+#   "192.0.2.10" an explicit address of this Mac
+# It is plain HTTP for a trusted network or VPN, not for the internet. Never a wildcard (0.0.0.0).
+expose = []
+# Static dashboard directory (relative to the project root).
+web_dir = "web"
+
+[auth]
+# Every API request needs the access token, also from this Mac (./wifi-sentry open logs the browser
+# in). true exempts requests from this Mac: only on a Mac nobody else uses, with no port forwards
+# (ssh -L, socat, `tailscale serve --tcp`, Docker) that make remote users look local.
+loopback_exempt = false
+token_file = "access-token"   # in the data directory; delete it and restart to rotate the token
+max_failures = 10             # wrong tokens from one address within failure_window_s -> 429
+failure_window_s = 300
+
+[paths]
+# Relative paths are resolved against the project root.
+data_dir = "data"
+
+[mac]
+enabled = true
+# The Swift sampler (see sensor/README.md). It is spawned as a child process.
+command = ["sensor/wifisense", "--hz", "10"]
+# Restart backoff when it dies: starts at min, doubles, capped at max.
+restart_min_s = 1.0
+restart_max_s = 60.0
+# Score weight in the fused score (fused = max of weight * source score).
+weight = 1.0
+
+[esp32]
+# Optional ESP32 CSI boards (esp32/README.md). Off by default: without a key the UDP port is
+# UNAUTHENTICATED, anyone who can reach it can inject fake sensor data. When enabled it listens on:
+#   "lan" (default) this Mac's Wi-Fi address, "127.0.0.1", an explicit address, or "0.0.0.0"
+#   (every interface; only if you really need it).
+enabled = false
+bind = "lan"
+port = 5566
+weight = 1.0
+# Shared secret the boards sign every datagram with (menuconfig "Shared key"); with a key set,
+# unsigned or wrongly signed datagrams are dropped. Put the real value in config.local.toml,
+# not here. "" = accept unsigned datagrams.
+key = ""
+
+[sources]
+# A source with no data for this long is online:false.
+offline_after_s = 5.0
+# Gap between two samples of one source after which its feature window is
+# cleared (no straddling a gap with a variance window).
+gap_reset_s = 1.5
+# After a channel / bandwidth change, ignore the source's score for this long.
+channel_settle_s = 5.0
+# Mac only. Per-chain RSSI unchanged for mac_frozen_s while the host rx packet
+# counter has also stalled = silent link, the sensor is blind ("frozen",
+# shown as not watching). Unchanged readings while packets keep arriving are a
+# still room (the first night sat on one value for 15-105 s, 113 times in 3 h,
+# at ~80 packets/s): those keep being scored, and only count as stuck after
+# mac_stuck_s. Without a packet counter in the stream the 15 s rule applies.
+mac_frozen_s = 15.0
+mac_stuck_s = 600.0
+
+[detect]
+# Feature windows.
+mac_window_s = 3.0            # per-chain RSSI variance window
+esp32_window_s = 2.0          # CSI amplitude time-variance window
+# Weight of the common-mode component in the Mac feature:
+#   r = var(d) + common_weight * var(c), c=(c0+c1)/2, d=(c0-c1)/2
+# 1.0 == mean of the two per-chain variances. Lower it to trust only the
+# antenna difference (more immune to AGC, but blind to pure body shadowing).
+mac_common_weight = 1.0
+# Step-robust variance: per window, the variance left after removing the best
+# single level step (min over split points of the pooled within-segment
+# variance). A lone step (AP tx-power change, furniture moved, door closed)
+# then scores ~0 instead of opening a 1-2 s event; fluctuating motion is kept.
+mac_step_robust = true
+# Pulse rejection: before the variance, drop the samples of a short positive
+# common-mode "box": both chains up >= mac_pulse_min_db together (c0 - c1
+# unchanged within mac_pulse_max_diff_db), back down within mac_pulse_max_s,
+# out of an idle 2.5 s. On the first full night (quiet link, nobody moving)
+# these +3/+4 dB, ~1 s boxes came every ~4 min (45 in 3 h; not seen in the
+# busier setup captures) and caused 25 of 27 false events; a box is two level
+# steps, so the step-robust variance alone could not remove it. Cost: a body
+# that makes exactly such an isolated identical box on both antennas is not
+# scored for that second; dips, one-antenna or differential changes, anything
+# longer than 2 s or out of an already-moving stretch are scored as before.
+# A rise still in progress is held back until it outlasts mac_pulse_max_s.
+mac_pulse_reject = true
+mac_pulse_max_s = 2.0
+mac_pulse_min_db = 2.0
+mac_pulse_max_diff_db = 1.0
+# Score normalisation: score = (r - median) / scale,
+#   scale = max(mad_k * 1.4826 * MAD, rel_floor * median, abs_floor)
+mad_k = 3.0
+mac_abs_floor = 0.15          # dB^2 (idle step-robust variance: median 0.15, MAD 0.03)
+mac_rel_floor = 0.0
+esp32_abs_floor = 0.002
+esp32_rel_floor = 0.25
+
+[detect.thresholds]
+# Event opens when the fused score stays >= threshold for min_duration_s.
+low = 5.0
+medium = 3.0
+high = 2.0
+
+[detect.events]
+sensitivity = "medium"        # initial level; changed via the API and persisted
+off_ratio = 0.6               # hysteresis: stays "active" while score >= off_ratio * threshold
+# Sustained time above threshold before an event opens. 3.0 removes the last two
+# (unexplained, ~1 s differential) medium events of the first night, but costs
+# about 1 s of latency and misses more brief or weak motion (docs/how-it-works.md,
+# section 5); kept at 2.0.
+min_duration_s = 2.0
+end_timeout_s = 10.0          # event closes after this long below the off threshold
+merge_gap_s = 30.0            # a new burst this soon after an event's end re-opens that event
+
+[detect.aux]
+# Discount the Mac score when slow auxiliaries say the RF environment itself is
+# disturbed (interference / congestion), not a body. z = robust z-score of the
+# auxiliary vs its own baseline; factor = 1 / (1 + k * max(0, max_weighted_z - z0)),
+# never below min_factor.
+enabled = true
+z0 = 3.0
+k = 0.25
+min_factor = 0.5
+# Per-auxiliary weights (0 disables). tx_retrans ratio is off by default:
+# rate adaptation after a body moves the channel also raises retries, so
+# using it would discount the very signal we look for.
+w_noise = 1.0
+w_cca = 0.7
+w_cca_intf = 1.0
+w_retrans = 0.0
+
+[baseline]
+learning_s = 600              # initial learning period
+min_learning_ticks = 30       # ticks before a provisional score is shown
+window_s = 3600               # rolling window of accepted ticks (median/MAD over this)
+recompute_every_s = 10
+# A tick only feeds the baseline when no event is open/pending, the last event
+# ended more than holdoff_s ago, and this source's score < gate_ratio * threshold.
+holdoff_s = 60
+gate_ratio = 0.5
+# Bounded absorption of a NEW STEADY disturbance (fan switched on): if a source
+# has been continuously rejected for absorb_after_s and its feature was
+# stationary over the last absorb_window_s (>= absorb_min_frac of ticks
+# elevated, robust CV <= absorb_max_cv), the baseline is rebuilt from that
+# window. Bursty movement (a person) fails the stationarity test.
+absorb_after_s = 900
+absorb_window_s = 300
+absorb_min_frac = 0.9
+absorb_max_cv = 0.5
+# Force absorption after this long regardless of stationarity (0 = never).
+force_absorb_after_s = 0
+# Persist baselines to SQLite every N seconds; reuse at startup if younger than max_age.
+save_every_s = 60
+max_age_s = 86400
+
+[arming]
+# Exit delay after arming from the dashboard: events in this time are logged but not alerted, so
+# you can leave without tripping it. The dashboard can change this and set a weekly schedule
+# (stored in data/sentry.db, not here). POST /api/arm without "delay_s" arms at once.
+delay_s = 60
+
+[alerts]
+# Only events opened while ARMED go to these sinks. The dashboard (event list +
+# SSE stream) always gets every event. Real sinks are all disabled by default.
+# The easy way is the dashboard (Phone alerts panel): it stores its settings in
+# data/alerts.json (mode 600) and, per channel, replaces what is configured here.
+cooldown_s = 300              # minimum time between two motion alerts (per sensor class: Mac / ESP32);
+                              # events in between are counted and mentioned in the next alert
+notify_on_close = false       # also send "Motion ended" for events that were alerted
+base_url = ""                 # dashboard link to put in alerts, e.g. "http://100.x.y.z:8450/"
+not_watching_s = 120          # armed but not watching (sensor offline, blind, learning) this long:
+                              # "can't sense" alert, then "watching again"; also "was not running"
+                              # after a down time this long. 0 = off
+not_watching_cooldown_s = 1800  # at most one "can't sense" / "was not running" alert per this long
+
+[alerts.ntfy]
+enabled = false
+url = ""                      # e.g. "https://ntfy.sh/your-secret-topic"
+priority = "high"
+token = ""
+
+[alerts.webhook]
+enabled = false
+url = ""                      # POSTs JSON {source, kind, title, message, time, url, suppressed, event, status}
+format = "json"               # or "slack" ({"text"}) / "discord" ({"content"})
+
+[alerts.email]
+enabled = false
+host = ""
+port = 587
+starttls = true               # or security = "starttls" | "ssl" | "none"
+username = ""
+password = ""
+from = ""
+to = []
+
+[storage]
+history_keep_days = 7
+
+[record]
+# Raw-sample recording for re-tuning later: hourly JSONL files in data/raw/,
+# gzipped when closed, oldest deleted beyond keep_hours or max_bytes (enforced on every
+# write; if one hour alone fills max_bytes, samples are dropped until the next hour).
+enabled = true
+# ESP32 frames are ~105 MB/hour raw per board (and whatever reaches the UDP port): opt in.
+include_esp32 = false
+keep_hours = 24
+max_bytes = 2_000_000_000
+
+[walktest]
+# Auto-stop server-side after this long. While a walk test runs no events open,
+# nothing is alerted and baselines are frozen.
+max_duration_s = 180
+# A level "reliably" caught the walk when it would have fired AND the walk spent
+# at least this fraction of its ticks above that level's threshold. The
+# recommendation is the least sensitive reliable level, else "none".
+reliable_fraction = 0.2

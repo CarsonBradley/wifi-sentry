@@ -1,0 +1,52 @@
+name: Bug report
+description: Something doesn't work as documented.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Before pasting any output, **remove your local paths (they contain your
+        user name), Tailscale/LAN addresses and anything else you consider private.** Never paste the
+        access token or `config.local.toml`.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. ./wifi-sentry start
+        2. ...
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Output of `./wifi-sentry doctor`
+      description: Redact paths and addresses first.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant lines from `./wifi-sentry logs -n 100`
+      render: text
+  - type: input
+    id: mac
+    attributes:
+      label: Mac model and macOS version
+      placeholder: "e.g. MacBook Air M3, macOS 27.1"
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How is it running?
+      options:
+        - ./wifi-sentry start
+        - ./wifi-sentry autostart on (LaunchAgent)
+        - ./run.sh / ./wifi-sentry run (foreground)
+        - Other

@@ -1,0 +1,31 @@
+[project]
+name = "wifi-sentry-engine"
+version = "0.3.0"
+description = "wifi-sentry motion engine: ingest, detection, storage, HTTP API"
+requires-python = ">=3.12,<3.15"
+dependencies = [
+    "numpy>=2.0,<3",
+    "aiohttp>=3.10,<4",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8,<10",
+]
+
+[project.scripts]
+wifi-sentry = "sentry.main:main"
+sentry-replay = "sentry.replay:main"
+
+[build-system]
+requires = ["uv_build>=0.12.22,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "sentry"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "hardware: needs this Mac's Wi-Fi and a built sensor/wifisense (skipped when absent or when WIFI_SENTRY_NO_HARDWARE=1)",
+]

@@ -1,0 +1,18 @@
+# wifi-sentry defaults (applied on first configure / after `idf.py fullclean` + deleting sdkconfig).
+# No credentials here: SSID/password are set with `idf.py menuconfig` and stored in ./sdkconfig (git-ignored).
+
+# CSI must be compiled into the Wi-Fi driver.
+CONFIG_ESP_WIFI_CSI_ENABLED=y
+
+# One CSI callback per ping reply: no A-MPDU aggregation (same as Espressif's esp-csi csi_recv_router).
+CONFIG_ESP_WIFI_AMPDU_TX_ENABLED=n
+CONFIG_ESP_WIFI_AMPDU_RX_ENABLED=n
+CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM=64
+
+# 1 ms scheduler tick so 50-200 Hz ping intervals are accurate.
+CONFIG_FREERTOS_HZ=1000
+
+# Headroom for the 1.4 kB JSON encoder in the sender task.
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=4096
+
+CONFIG_COMPILER_OPTIMIZATION_PERF=y

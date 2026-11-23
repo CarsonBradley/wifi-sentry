@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        # macos-latest = macOS 26 arm64; macos-15 = the previous arm64 image (GitHub runner list, 2026-11).
+        os: [macos-latest, macos-15]
+    env:
+      # CI has no usable Wi-Fi: skip the one test that probes the real interface.
+      WIFI_SENTRY_NO_HARDWARE: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
+
+      - name: Toolchain
+        run: |
+          sw_vers
+          uname -m
+          swiftc --version
+          uv --version
+
+      - name: Build the Swift sampler
+        run: |
+          sh sensor/build.sh
+          lipo -archs sensor/wifisense
+          sensor/wifisense --version
+
+      - name: Python environment
+        working-directory: engine
+        run: uv sync --locked
+
+      - name: Engine tests
+        run: scripts/test.sh
+
+      - name: ESP32 encoder host test
+        run: sh esp32/test/run_host_test.sh

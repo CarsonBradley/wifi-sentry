@@ -1,0 +1,35 @@
+# wifi-sentry: this machine's settings. ./install.sh copies this file to config.local.toml
+# (git-ignored), which overrides config.toml key by key. Uncomment what you need, then
+# `./wifi-sentry restart`. `./wifi-sentry doctor` shows what is in effect.
+
+[server]
+# port = 8450
+# Reach the dashboard from your phone: "tailscale" (recommended) and/or "lan" (anyone on your
+# Wi-Fi can reach the login page). Both need the access token: `./wifi-sentry url` prints the links.
+# Plain HTTP: use it on a trusted network or a VPN, never expose it to the internet.
+# expose = ["tailscale"]
+
+[esp32]
+# Optional ESP32 CSI boards (esp32/README.md). The UDP port is unauthenticated: only enable it on
+# a network you trust. bind = "lan" listens on this Mac's Wi-Fi address.
+# enabled = true
+# bind = "lan"
+# port = 5566
+
+# Alert sinks (all off by default; only events opened while ARMED are sent). Secrets live here.
+# [alerts.ntfy]
+# enabled = true
+# url = "https://ntfy.sh/pick-a-long-unguessable-topic"
+# token = ""
+#
+# [alerts.webhook]
+# enabled = true
+# url = "http://homeassistant.local:8123/api/webhook/..."
+#
+# [alerts.email]
+# enabled = true
+# host = "smtp.example.com"
+# username = "me@example.com"
+# password = "app-password"
+# from = "me@example.com"
+# to = ["me@example.com"]

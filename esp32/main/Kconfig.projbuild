@@ -1,0 +1,64 @@
+menu "wifi-sentry"
+
+    config WIFI_SENTRY_WIFI_SSID
+        string "Wi-Fi network name (SSID)"
+        default ""
+        help
+            Name of the home Wi-Fi network to join. Use the 2.4 GHz network if your
+            router shows separate 2.4 / 5 GHz names (ESP32-S3 and ESP32-C6 are 2.4 GHz only).
+
+    config WIFI_SENTRY_WIFI_PASSWORD
+        string "Wi-Fi password"
+        default ""
+        help
+            Wi-Fi password (WPA2 or WPA3). Leave empty for an open network.
+            It is stored only in ./sdkconfig, which is git-ignored.
+
+    config WIFI_SENTRY_TARGET_HOST
+        string "Receiver (Mac) IP address or hostname"
+        default ""
+        help
+            Where CSI datagrams are sent: the Mac's address on your Wi-Fi network
+            (`sensor/wifisense --iface` prints it as "ipv4"). Required. Give the Mac a DHCP
+            reservation on the router so this never changes. Plain DNS names work if
+            your router resolves them; ".local" (mDNS/Bonjour) names do NOT.
+
+    config WIFI_SENTRY_TARGET_PORT
+        int "Receiver UDP port"
+        range 1 65535
+        default 5566
+
+    config WIFI_SENTRY_NODE_NAME
+        string "Node name (unique per board, e.g. livingroom)"
+        default "node1"
+        help
+            Sent as "src":"esp32:<name>". Letters, digits, '-', '_' and '.' only
+            (anything else is replaced by '_'); max 31 characters.
+
+    config WIFI_SENTRY_SHARED_KEY
+        string "Shared key (signs every datagram; empty = unsigned)"
+        default ""
+        help
+            Any string of at least 16 random characters, e.g. the output of
+            `openssl rand -hex 16`. Set the same value as [esp32] key in the Mac's
+            config.local.toml: the engine then drops every datagram that is not signed
+            with it. Same key on every board. Stored only in ./sdkconfig (git-ignored).
+            Signing authenticates the data; it does not encrypt it.
+
+    config WIFI_SENTRY_PING_HZ
+        int "CSI rate: pings to the router per second"
+        range 1 200
+        default 50
+        help
+            The node pings its default gateway at this rate; each reply from the
+            router yields one CSI frame. 50 Hz is a good default. Above ~100 Hz some
+            routers rate-limit ICMP.
+
+    config WIFI_SENTRY_DROP_GROUP_FRAMES
+        bool "Ignore broadcast/multicast frames from the router (beacons etc.)"
+        default y
+        help
+            Keep only CSI from unicast frames sent by the router to this node, so the
+            frame rate equals the ping rate instead of ping rate + beacons.
+
+endmenu

@@ -1,0 +1,8 @@
+# sdkconfig holds your Wi-Fi password after `idf.py menuconfig` - never commit it.
+sdkconfig
+sdkconfig.old
+build/
+managed_components/
+dependencies.lock
+test/host_test
+__pycache__/

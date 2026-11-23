@@ -1,0 +1,246 @@
+#!/bin/bash
+# wifi-sentry command line. Run ./install.sh once first. `./wifi-sentry help` lists the commands.
+set -uo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+cd "$ROOT" || exit 1
+PY="$ROOT/engine/.venv/bin/python"
+LABEL=com.wifi-sentry.engine
+PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
+DOMAIN="gui/$(id -u)"
+
+die() { echo "wifi-sentry: $*" >&2; exit 1; }
+need_install() {
+  [ -x "$PY" ] || die "not installed yet: run ./install.sh first"
+}
+cli() { "$PY" -m sentry.cli "$@"; }
+load_info() {
+  need_install
+  local out
+  out="$(cli info)" || die "can't read the configuration (see the error above)"
+  VERSION=$(sed -n 's/^version=//p' <<<"$out"); DATA=$(sed -n 's/^data=//p' <<<"$out")
+  LOG=$(sed -n 's/^log=//p' <<<"$out"); PORT=$(sed -n 's/^port=//p' <<<"$out")
+}
+engine_pid() { cli pid 2>/dev/null; }
+# Parsed by Python, not grepped: the folder path may contain spaces, '&' or regex characters.
+agent_installed() { [ -f "$PLIST" ] && cli agent-mine; }
+agent_loaded() { launchctl print "$DOMAIN/$LABEL" >/dev/null 2>&1; }
+find_uv() {
+  command -v uv 2>/dev/null && return 0
+  local c; for c in "$HOME/.local/bin/uv" "$HOME/.cargo/bin/uv" /opt/homebrew/bin/uv /usr/local/bin/uv; do
+    [ -x "$c" ] && { echo "$c"; return 0; }
+  done
+  return 1
+}
+# The sampler of this checkout, matched as a fixed string (no pkill regex on a user-chosen path).
+kill_sampler() {
+  local p="$ROOT/sensor/wifisense" pid cmd
+  ps -axo pid=,command= | while read -r pid cmd; do
+    case "$cmd" in "$p"|"$p "*) kill -KILL "$pid" 2>/dev/null ;; esac
+  done
+}
+api_up() { curl -s -o /dev/null --max-time 2 "http://127.0.0.1:$PORT/api/auth"; }
+
+usage() {
+  cat <<EOF
+wifi-sentry ${VERSION:-} - Wi-Fi motion detector for macOS
+
+usage: ./wifi-sentry COMMAND
+
+  start [ARGS]       start the engine in the background (dashboard: http://127.0.0.1:PORT);
+                     ARGS go to the engine as with run, e.g. --learning-s 120
+  stop               stop it (the sampler stops with it)
+  restart            stop, then start
+  status             running? state, sample rate, listening addresses
+  open               open the dashboard in this Mac's browser (logs it in with the access token)
+  url                dashboard links with the access token: this Mac, and phone/laptop links
+  doctor             full self-diagnosis (what this Mac supports, config, ports, data, version)
+  logs [-n N] [-f]   show the engine log (last N lines, default 50; -f to follow)
+  probe              what this Mac's Wi-Fi provides (per-antenna signal etc.), ~2 s
+  autostart on|off   start at login and restart after a crash (a LaunchAgent for this folder)
+  update             git pull, rebuild, and restart if it was running
+  uninstall [--purge]  stop, remove the LaunchAgent, venv and sampler (--purge: also delete data/)
+  version            print the version
+  run [ARGS]         run in the foreground (Ctrl-C stops); ARGS go to the engine (see ./run.sh --help)
+
+Settings: config.local.toml (overrides config.toml). Data: data/. Not internet-facing: plain HTTP for
+your own network or a VPN such as Tailscale.
+EOF
+}
+
+cmd_start() {
+  load_info
+  local pid
+  if pid=$(engine_pid); then echo "already running (pid $pid)"; return 0; fi
+  [ -x sensor/wifisense ] || die "the Wi-Fi sampler isn't built: run ./install.sh"
+  cli port-check || return 1
+  mkdir -p "$DATA/logs"
+  if agent_installed; then
+    # Start at login is on: let launchd own the process (it restarts it after a crash).
+    if agent_loaded; then launchctl kickstart "$DOMAIN/$LABEL" >/dev/null 2>&1
+    else launchctl bootstrap "$DOMAIN" "$PLIST" || die "launchctl bootstrap failed"; fi
+    how="launchd ($LABEL)"
+  else
+    nohup ./run.sh --log-file "$LOG" "$@" >> "$DATA/logs/stdout.log" 2>&1 < /dev/null &
+    how="background"
+  fi
+  local i
+  for i in $(seq 1 40); do
+    if pid=$(engine_pid) && api_up; then
+      echo "started (pid $pid, $how); log: $LOG"
+      echo
+      cli url
+      return 0
+    fi
+    sleep 0.5
+  done
+  echo "wifi-sentry: failed to start. Last lines of the logs:" >&2
+  tail -n 5 "$DATA/logs/stdout.log" >&2 2>/dev/null
+  tail -n 5 "$LOG" >&2 2>/dev/null
+  echo "Run ./wifi-sentry doctor for a full diagnosis." >&2
+  return 1
+}
+
+cmd_stop() {
+  load_info
+  rm -f "$DATA/engine.pid"   # pidfile of 0.1.x scripts/start.sh; the engine lock is authoritative now
+  local pid i booted=""
+  if agent_installed && agent_loaded; then
+    # bootout stops it now; the LaunchAgent stays installed and starts it again at the next login.
+    engine_pid >/dev/null && booted=1
+    launchctl bootout "$DOMAIN/$LABEL" 2>/dev/null
+    for i in $(seq 1 30); do engine_pid >/dev/null || break; sleep 0.5; done
+  fi
+  if ! pid=$(engine_pid); then
+    if [ -n "$booted" ]; then echo "stopped (start at login stays on)"; else echo "not running"; fi
+    return 0
+  fi
+  kill -TERM "$pid" 2>/dev/null
+  for i in $(seq 1 30); do
+    engine_pid >/dev/null || { echo "stopped"; return 0; }
+    sleep 0.5
+  done
+  echo "did not exit after 15 s; sending SIGKILL"
+  kill -KILL "$pid" 2>/dev/null
+  kill_sampler
+  sleep 0.5
+  echo "stopped"
+}
+
+cmd_status() {
+  load_info
+  cli status
+  local rc=$?
+  if agent_installed; then echo "start at login: on"; else echo "start at login: off"; fi
+  return $rc
+}
+
+cmd_logs() {
+  load_info
+  local n=50 follow=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      -n) n="${2:-50}"; shift 2 ;;
+      -f|--follow) follow=1; shift ;;
+      *) die "logs: unknown option $1" ;;
+    esac
+  done
+  [ -f "$LOG" ] || die "no log yet ($LOG)"
+  if [ -n "$follow" ]; then exec tail -n "$n" -F "$LOG"; else tail -n "$n" "$LOG"; fi
+}
+
+cmd_autostart() {
+  load_info
+  case "${1:-}" in
+    on)
+      local was_running="" pid uvdir=""
+      if pid=$(engine_pid) && ! agent_loaded; then was_running=1; cmd_stop >/dev/null; fi
+      if agent_loaded; then
+        launchctl bootout "$DOMAIN/$LABEL" 2>/dev/null
+        local i; for i in $(seq 1 30); do agent_loaded || break; sleep 0.5; done
+      fi
+      uvdir=$(dirname "$(find_uv || echo /usr/bin/uv)")
+      cli launchagent --uv-dir "$uvdir" >/dev/null || die "could not write $PLIST"
+      plutil -lint "$PLIST" >/dev/null || die "invalid plist $PLIST"
+      launchctl bootstrap "$DOMAIN" "$PLIST" || die "launchctl bootstrap failed"
+      echo "start at login: on ($PLIST)"
+      echo "The engine now runs under launchd${was_running:+ (moved from the background process)}; ./wifi-sentry stop / start still work."
+      ;;
+    off)
+      if [ -f "$PLIST" ] && ! agent_installed; then
+        die "$PLIST belongs to another wifi-sentry checkout; not touching it"
+      fi
+      if agent_loaded; then
+        launchctl bootout "$DOMAIN/$LABEL" 2>/dev/null
+        local i; for i in $(seq 1 30); do agent_loaded || break; sleep 0.5; done
+      fi
+      rm -f "$PLIST"
+      echo "start at login: off (the engine is stopped; ./wifi-sentry start runs it in the background)"
+      ;;
+    *) die "usage: ./wifi-sentry autostart on|off" ;;
+  esac
+}
+
+cmd_update() {
+  need_install
+  load_info
+  local before="$VERSION" was_running="" uv
+  engine_pid >/dev/null && was_running=1
+  [ -d .git ] || die "not a git checkout; download the new version instead"
+  git pull --ff-only || die "git pull failed (local changes? see above)"
+  sh sensor/build.sh || die "sampler build failed"
+  uv=$(find_uv) || die "uv not found (needed to update the Python environment)"
+  (cd engine && "$uv" sync --locked) || die "uv sync failed"
+  load_info
+  echo "wifi-sentry $before -> $VERSION"
+  if [ -n "$was_running" ]; then cmd_stop && cmd_start; fi
+}
+
+cmd_uninstall() {
+  local purge=""
+  [ "${1:-}" = "--purge" ] && purge=1
+  if [ -x "$PY" ]; then
+    load_info
+    cmd_stop
+    if agent_installed; then cmd_autostart off >/dev/null; echo "removed $PLIST"; fi
+  fi
+  DATA="${DATA:-$ROOT/data}"
+  if [ -z "$purge" ] && [ -d "$DATA" ] && [ -t 0 ]; then
+    read -r -p "Also delete recorded data in $DATA (events, recordings, access token)? [y/N] " ans
+    case "$ans" in y|Y|yes) purge=1 ;; esac
+  fi
+  rm -rf engine/.venv sensor/wifisense
+  echo "removed engine/.venv and sensor/wifisense"
+  if [ -n "$purge" ]; then rm -rf "$DATA"; echo "deleted $DATA"; else echo "kept $DATA"; fi
+  echo "To remove wifi-sentry completely, delete this folder: rm -rf \"$ROOT\""
+}
+
+cmd="${1:-help}"; [ $# -gt 0 ] && shift
+case "$cmd" in
+  start) cmd_start "$@" ;;
+  stop) cmd_stop ;;
+  restart) cmd_stop && cmd_start "$@" ;;
+  status) cmd_status ;;
+  url) load_info; cli url ;;
+  open)
+    load_info
+    engine_pid >/dev/null || die "not running: ./wifi-sentry start first"
+    link=$(cli open-url) || exit 1
+    # `open` hands the URL to the browser (no shell, no history); it holds the token only until the
+    # dashboard swaps it for a login cookie and drops it from the address bar.
+    /usr/bin/open "$link" || { echo "Open this link in your browser: $link"; exit 1; } ;;
+  doctor)
+    if [ -x "$PY" ]; then cli doctor
+    else
+      echo "wifi-sentry is not installed yet (no engine/.venv): run ./install.sh"; exit 1
+    fi ;;
+  logs) cmd_logs "$@" ;;
+  probe) load_info; cli probe "$@" ;;
+  autostart) cmd_autostart "$@" ;;
+  update) cmd_update ;;
+  uninstall) cmd_uninstall "$@" ;;
+  version|--version|-V) load_info; echo "wifi-sentry $VERSION" ;;
+  run) need_install; exec ./run.sh "$@" ;;
+  help|-h|--help) [ -x "$PY" ] && VERSION=$(cli info 2>/dev/null | sed -n 's/^version=//p'); usage ;;
+  *) echo "wifi-sentry: unknown command '$cmd'" >&2; usage >&2; exit 2 ;;
+esac
