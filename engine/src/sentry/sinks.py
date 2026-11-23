@@ -136,6 +136,11 @@ HEALTH_KINDS = ("blind", "watching", "restart")
 
 
 # ---------------------------------------------------------------------- channels
+# EHLO name sent to SMTP servers. An address literal instead of smtplib's default
+# socket.getfqdn(): that lookup can block for tens of seconds on Macs whose hostname
+# has no reverse DNS, and it would send the computer's name to the mail server.
+_EHLO_NAME = "[127.0.0.1]"
+
 class DeliveryError(Exception):
     """A delivery failure with a message meant for the dashboard. retry=False: trying again won't help."""
 
@@ -324,9 +329,10 @@ class EmailSink(Sink):
         where = f"{self.host}:{self.port}"
         try:
             if self.security == "ssl":
-                s = smtplib.SMTP_SSL(self.host, self.port, timeout=self.timeout, context=ssl.create_default_context())
+                s = smtplib.SMTP_SSL(self.host, self.port, local_hostname=_EHLO_NAME, timeout=self.timeout,
+                                     context=ssl.create_default_context())
             else:
-                s = smtplib.SMTP(self.host, self.port, timeout=self.timeout)
+                s = smtplib.SMTP(self.host, self.port, local_hostname=_EHLO_NAME, timeout=self.timeout)
             with s:
                 if self.security == "starttls":
                     s.starttls(context=ssl.create_default_context())
